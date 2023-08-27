@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
+const schedule = require("node-schedule"); // Import node-schedule
 
 const serviceAccount = require("./gautham-courses-firebase-adminsdk-v0pqv-a0298caefe.json");
 
@@ -74,6 +75,27 @@ app.post("/payment", async (req, res) => {
   }
 });
 
+app.get("/subscription", async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const userDocRef = db.collection("users").doc("user");
+
+    const userDoc = await userDocRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ status: "User not found" });
+    }
+
+    const userData = userDoc.data();
+    const subscriptionStatus = userData.paid; // Retrieve the Paid field
+
+    return res.status(200).json({ paid: subscriptionStatus });
+  } catch (error) {
+    console.error("Error fetching subscription data:", error);
+    return res.status(500).json({ status: "error" });
+  }
+});
+
 const scheduleSubscriptionUpdate = async () => {
   const db = admin.firestore();
   const usersCollection = db.collection("users");
@@ -107,7 +129,16 @@ const scheduleSubscriptionUpdate = async () => {
   console.log("Scheduler");
 };
 
-setInterval(scheduleSubscriptionUpdate, 24 * 60 * 60 * 1000); // Run every 24 hours
+// setInterval(scheduleSubscriptionUpdate, 24 * 60 * 60 * 1000); // Run every 24 hours
+
+schedule.scheduleJob("0 0 * * *", async () => {
+  try {
+    console.log("Running scheduleSubscriptionUpdate...");
+    await scheduleSubscriptionUpdate();
+  } catch (error) {
+    console.error("Error running scheduleSubscriptionUpdate:", error);
+  }
+});
 
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
